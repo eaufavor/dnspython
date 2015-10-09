@@ -171,7 +171,8 @@ def _destination_and_source(af, where, port, source, source_port):
     return (af, destination, source)
 
 def udp(q, where, timeout=None, port=53, af=None, source=None, source_port=0,
-        ignore_unexpected=False, one_rr_per_rrset=False):
+        ignore_unexpected=False, one_rr_per_rrset=False, flag=None,
+        r_callback=None):
     """Return the response obtained after sending a query via UDP.
 
     @param q: the query
@@ -199,7 +200,6 @@ def udp(q, where, timeout=None, port=53, af=None, source=None, source_port=0,
     @param one_rr_per_rrset: Put each RR into its own RRset
     @type one_rr_per_rrset: bool
     """
-
     wire = q.to_wire()
     (af, destination, source) = _destination_and_source(af, where, port, source,
                                                         source_port)
@@ -214,7 +214,7 @@ def udp(q, where, timeout=None, port=53, af=None, source=None, source_port=0,
         s.sendto(wire, destination)
         while 1:
             _wait_for_readable(s, expiration)
-            (wire, from_address) = s.recvfrom(65535)
+            (wire, from_address) = s.recvfrom(8192)
             if _addresses_equal(af, from_address, destination) or \
                     (dns.inet.is_multicast(where) and \
                          from_address[1:] == destination[1:]):
@@ -226,6 +226,11 @@ def udp(q, where, timeout=None, port=53, af=None, source=None, source_port=0,
     finally:
         response_time = time.time() - begin_time
         s.close()
+    if flag is not None and not flag:
+        flag.append(1)
+        r_callback(wire)
+
+
     r = dns.message.from_wire(wire, keyring=q.keyring, request_mac=q.mac,
                               one_rr_per_rrset=one_rr_per_rrset)
     r.time = response_time
